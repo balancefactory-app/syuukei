@@ -2,21 +2,27 @@ import { useState, useEffect } from 'react'
 import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore'
 import { db } from '../firebase'
 
-function formatDate(d) {
-  return d.toISOString().split('T')[0]
+function toLocalDateString(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 export default function ProductReport() {
   const today = new Date()
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-  const [startDate, setStartDate] = useState(formatDate(firstOfMonth))
-  const [endDate, setEndDate] = useState(formatDate(today))
+
+  const [fromDate, setFromDate] = useState(toLocalDateString(firstOfMonth))
+  const [toDate, setToDate] = useState(toLocalDateString(today))
   const [sales, setSales] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const start = new Date(startDate + 'T00:00:00+09:00')
-    const end = new Date(endDate + 'T23:59:59+09:00')
+    if (!fromDate || !toDate) return
+    setLoading(true)
+    const start = new Date(fromDate + 'T00:00:00')
+    const end = new Date(toDate + 'T23:59:59.999')
 
     const q = query(
       collection(db, 'sales'),
@@ -26,89 +32,112 @@ export default function ProductReport() {
     )
 
     const unsub = onSnapshot(q, (snap) => {
-      setSales(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      setSales(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })))
       setLoading(false)
     }, (err) => {
       console.error(err)
       setLoading(false)
     })
-    return () => unsub()
-  }, [startDate, endDate])
 
+    return () => unsub()
+  }, [fromDate, toDate])
+
+  // Group by product
   const byProduct = sales.reduce((acc, s) => {
-    if (!acc[s.productName]) acc[s.productName] = { total: 0, count: 0 }
-    acc[s.productName].total += s.amount
-    acc[s.productName].count += 1
+    const name = s.productName || '不明'
+    if (!acc[name]) acc[name] = { total: 0, count: 0 }
+    acc[name].total += s.amount || 0
+    acc[name].count += 1
     return acc
   }, {})
 
-  const sorted = Object.entries(byProduct).sort(([, a], [, b]) => b.total - a.total)
-  const grandTotal = sales.reduce((sum, s) => sum + s.amount, 0)
+  const sortedProducts = Object.entries(byProduct).sort((a, b) => b[1].total - a[1].total)
+  const grandTotal = sales.reduce((sum, s) => sum + (s.amount || 0), 0)
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-        <h2 className="text-lg font-semibold text-gray-800 mb-3">商品別集計</h2>
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500">開始</label>
+      {/* Date Range Picker */}
+      <div className="bg-white rounded-xl shadow-md p-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">📦 期間を選択</h3>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 mb-1">開始日</label>
             <input
               type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500">終了</label>
+          <div className="flex items-end justify-center pb-1 text-gray-400 hidden sm:flex">〜</div>
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 mb-1">終了日</label>
             <input
               type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
       </div>
 
-      <div className="bg-teal-500 text-white rounded-xl p-5">
-        <p className="text-sm text-teal-100 mb-1">期間合計売上</p>
-        <p className="text-3xl font-bold">¥{grandTotal.toLocaleString()}</p>
-        <p className="text-sm text-teal-100 mt-1">{sorted.length}商品 / {sales.length}件</p>
+      {/* Summary */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-md">
+          <p className="text-blue-100 text-xs mb-1">期間合計売上</p>
+          <p className="text-xl font-bold">¥{grandTotal.toLocaleString()}</p>
+        </div>
+        <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl p-4 text-white shadow-md">
+          <p className="text-teal-100 text-xs mb-1">商品種別数</p>
+          <p className="text-xl font-bold">{sortedProducts.length}種</p>
+        </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* Product ranking */}
+      <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100">
           <h3 className="text-sm font-semibold text-gray-700">商品別売上ランキング</h3>
         </div>
         {loading ? (
           <div className="p-8 text-center text-gray-400 text-sm">読み込み中...</div>
-        ) : sorted.length === 0 ? (
-          <div className="p-8 text-center text-gray-400 text-sm">この期間の売上データはありません</div>
+        ) : sortedProducts.length === 0 ? (
+          <div className="p-8 text-center text-gray-400 text-sm">
+            <p className="text-3xl mb-2">📭</p>
+            <p>この期間の売上データはありません</p>
+          </div>
         ) : (
-          <ul className="divide-y divide-gray-50">
-            {sorted.map(([product, data], idx) => {
-              const pct = grandTotal > 0 ? (data.total / grandTotal) * 100 : 0
+          <div className="divide-y divide-gray-50">
+            {sortedProducts.map(([name, { total, count }], index) => {
+              const pct = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0
               return (
-                <li key={product} className="px-4 py-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-teal-600 w-5">{idx + 1}</span>
-                      <span className="text-sm font-medium text-gray-800">{product}</span>
-                      <span className="text-xs text-gray-400">{data.count}件</span>
+                <div key={name} className="px-4 py-3">
+                  <div className="flex justify-between items-start mb-1.5">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className={`text-sm font-bold flex-shrink-0 ${
+                        index === 0 ? 'text-yellow-500' : index === 1 ? 'text-gray-400' : index === 2 ? 'text-amber-600' : 'text-gray-400'
+                      }`}>
+                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-800 truncate">{name}</span>
                     </div>
-                    <span className="text-sm font-semibold text-gray-800">¥{data.total.toLocaleString()}</span>
+                    <div className="ml-3 text-right flex-shrink-0">
+                      <span className="text-sm font-bold text-blue-600">¥{total.toLocaleString()}</span>
+                      <span className="text-xs text-gray-400 ml-2">{count}件</span>
+                    </div>
                   </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden ml-7">
+                  {/* Progress bar */}
+                  <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
                     <div
-                      className="h-full bg-teal-400 rounded-full"
+                      className="bg-gradient-to-r from-blue-500 to-teal-500 h-1.5 rounded-full transition-all"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                </li>
+                  <div className="text-right text-xs text-gray-400 mt-0.5">{pct}%</div>
+                </div>
               )
             })}
-          </ul>
+          </div>
         )}
       </div>
     </div>
