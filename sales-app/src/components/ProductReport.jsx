@@ -2,105 +2,114 @@ import { useState, useEffect } from 'react'
 import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore'
 import { db } from '../firebase'
 
-function toDateString(date) {
-  return date.toISOString().slice(0, 10)
+function formatDate(d) {
+  return d.toISOString().split('T')[0]
 }
 
 export default function ProductReport() {
-  const today = toDateString(new Date())
-  const [from, setFrom] = useState(today)
-  const [to, setTo] = useState(today)
+  const today = new Date()
+  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+  const [startDate, setStartDate] = useState(formatDate(firstOfMonth))
+  const [endDate, setEndDate] = useState(formatDate(today))
   const [sales, setSales] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const start = new Date(from + 'T00:00:00')
-    const end = new Date(to + 'T23:59:59')
+    const start = new Date(startDate + 'T00:00:00+09:00')
+    const end = new Date(endDate + 'T23:59:59+09:00')
+
     const q = query(
       collection(db, 'sales'),
       where('createdAt', '>=', Timestamp.fromDate(start)),
       where('createdAt', '<=', Timestamp.fromDate(end)),
       orderBy('createdAt', 'asc')
     )
+
     const unsub = onSnapshot(q, (snap) => {
       setSales(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
       setLoading(false)
+    }, (err) => {
+      console.error(err)
+      setLoading(false)
     })
-    return unsub
-  }, [from, to])
+    return () => unsub()
+  }, [startDate, endDate])
 
-  const byProduct = sales.reduce((acc, r) => {
-    if (!acc[r.productName]) acc[r.productName] = { total: 0, count: 0 }
-    acc[r.productName].total += r.amount
-    acc[r.productName].count += 1
+  const byProduct = sales.reduce((acc, s) => {
+    if (!acc[s.productName]) acc[s.productName] = { total: 0, count: 0 }
+    acc[s.productName].total += s.amount
+    acc[s.productName].count += 1
     return acc
   }, {})
 
-  const products = Object.entries(byProduct).sort((a, b) => b[1].total - a[1].total)
-  const grandTotal = sales.reduce((s, r) => s + r.amount, 0)
+  const sorted = Object.entries(byProduct).sort(([, a], [, b]) => b.total - a.total)
+  const grandTotal = sales.reduce((sum, s) => sum + s.amount, 0)
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl shadow p-5">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">商品別レポート</h2>
-        <div className="flex gap-3 items-center flex-wrap">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <h2 className="text-lg font-semibold text-gray-800 mb-3">商品別集計</h2>
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">開始</span>
+            <label className="text-xs text-gray-500">開始</label>
             <input
               type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
             />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">終了</span>
+            <label className="text-xs text-gray-500">終了</label>
             <input
               type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
             />
           </div>
         </div>
-
-        {grandTotal > 0 && (
-          <div className="mt-4 bg-teal-50 rounded-lg p-4">
-            <p className="text-xs text-teal-600 font-medium mb-1">期間合計売上</p>
-            <p className="text-2xl font-bold text-teal-700">¥{grandTotal.toLocaleString()}</p>
-          </div>
-        )}
       </div>
 
-      <div className="bg-white rounded-xl shadow overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-            <tr>
-              <th className="px-4 py-3 text-left">商品名</th>
-              <th className="px-4 py-3 text-right">件数</th>
-              <th className="px-4 py-3 text-right">売上合計</th>
-              <th className="px-4 py-3 text-right">構成比</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {loading && (
-              <tr><td colSpan="4" className="px-4 py-6 text-center text-gray-400">読み込み中…</td></tr>
-            )}
-            {!loading && products.length === 0 && (
-              <tr><td colSpan="4" className="px-4 py-6 text-center text-gray-400">売上データがありません</td></tr>
-            )}
-            {products.map(([name, data]) => (
-              <tr key={name} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-800">{name}</td>
-                <td className="px-4 py-3 text-right text-gray-500">{data.count}件</td>
-                <td className="px-4 py-3 text-right font-semibold text-gray-800">¥{data.total.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right text-gray-500">
-                  {grandTotal > 0 ? Math.round((data.total / grandTotal) * 100) : 0}%
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="bg-teal-500 text-white rounded-xl p-5">
+        <p className="text-sm text-teal-100 mb-1">期間合計売上</p>
+        <p className="text-3xl font-bold">¥{grandTotal.toLocaleString()}</p>
+        <p className="text-sm text-teal-100 mt-1">{sorted.length}商品 / {sales.length}件</p>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700">商品別売上ランキング</h3>
+        </div>
+        {loading ? (
+          <div className="p-8 text-center text-gray-400 text-sm">読み込み中...</div>
+        ) : sorted.length === 0 ? (
+          <div className="p-8 text-center text-gray-400 text-sm">この期間の売上データはありません</div>
+        ) : (
+          <ul className="divide-y divide-gray-50">
+            {sorted.map(([product, data], idx) => {
+              const pct = grandTotal > 0 ? (data.total / grandTotal) * 100 : 0
+              return (
+                <li key={product} className="px-4 py-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-teal-600 w-5">{idx + 1}</span>
+                      <span className="text-sm font-medium text-gray-800">{product}</span>
+                      <span className="text-xs text-gray-400">{data.count}件</span>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-800">¥{data.total.toLocaleString()}</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden ml-7">
+                    <div
+                      className="h-full bg-teal-400 rounded-full"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
     </div>
   )

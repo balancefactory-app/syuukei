@@ -5,10 +5,10 @@ import MonthlyReport from './components/MonthlyReport'
 import ProductReport from './components/ProductReport'
 
 const tabs = [
-  { id: 'form', label: '売上入力' },
-  { id: 'daily', label: '日次レポート' },
-  { id: 'monthly', label: '月次レポート' },
-  { id: 'product', label: '商品別' },
+  { id: 'form', label: '売上入力', icon: '📝' },
+  { id: 'daily', label: '日次レポート', icon: '📅' },
+  { id: 'monthly', label: '月次レポート', icon: '📊' },
+  { id: 'product', label: '商品別', icon: '📦' },
 ]
 
 export default function App() {
@@ -17,27 +17,29 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-teal-600 text-white shadow-md">
+      <header className="bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-md">
         <div className="max-w-4xl mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold tracking-wide">売上管理</h1>
+          <h1 className="text-xl font-bold tracking-wide">売上管理システム</h1>
+          <p className="text-blue-100 text-sm mt-0.5">Sales Aggregation App</p>
         </div>
       </header>
 
-      {/* Tab Navigation */}
-      <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+      {/* Sticky Tab Navigation */}
+      <nav className="sticky top-0 z-10 bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-2">
           <div className="flex overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-4 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'border-teal-500 text-teal-600'
+                    ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                {tab.label}
+                <span className="text-lg">{tab.icon}</span>
+                <span>{tab.label}</span>
               </button>
             ))}
           </div>
