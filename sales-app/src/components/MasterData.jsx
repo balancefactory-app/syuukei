@@ -22,7 +22,7 @@ const PRODUCT_DEFAULTS = [
 const PAGE_SIZE = 25
 
 function MasterSection({ title, icon, collectionName, seedDefaults, allowImportExport, importColumnHeaders }) {
-  const { items, loading, add, update, remove } = useMasterList(collectionName, seedDefaults)
+  const { items, loading, add, update, remove, addMany } = useMasterList(collectionName, seedDefaults)
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
@@ -117,13 +117,20 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
       ? parseCsvByColumn(text, importColumnHeaders)
       : parseCsvNames(text)
     const existing = new Set(items.map((item) => item.name))
+    const toAdd = []
     for (const name of names) {
       if (!existing.has(name)) {
-        await add(name)
         existing.add(name)
+        toAdd.push(name)
       }
     }
+    if (toAdd.length > 0) {
+      await addMany(toAdd)
+    }
     e.target.value = ''
+    window.alert(
+      `CSVから読み込み: ${names.length}件\n新規登録: ${toAdd.length}件\n重複・既存のためスキップ: ${names.length - toAdd.length}件`
+    )
   }
 
   return (

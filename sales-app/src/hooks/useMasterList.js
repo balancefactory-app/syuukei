@@ -7,8 +7,11 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+
+const BATCH_SIZE = 400
 
 const collator = new Intl.Collator('ja')
 
@@ -52,5 +55,16 @@ export default function useMasterList(collectionName, seedDefaults = []) {
     await deleteDoc(doc(db, collectionName, id))
   }
 
-  return { items, loading, add, update, remove }
+  const addMany = async (names) => {
+    for (let i = 0; i < names.length; i += BATCH_SIZE) {
+      const chunk = names.slice(i, i + BATCH_SIZE)
+      const batch = writeBatch(db)
+      for (const name of chunk) {
+        batch.set(doc(collection(db, collectionName)), { name })
+      }
+      await batch.commit()
+    }
+  }
+
+  return { items, loading, add, update, remove, addMany }
 }
