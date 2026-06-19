@@ -55,6 +55,18 @@ export default function ProductReport() {
   const sortedProducts = Object.entries(byProduct).sort((a, b) => b[1].total - a[1].total)
   const grandTotal = sales.reduce((sum, s) => sum + (s.amount || 0), 0)
 
+  const selectToday = () => {
+    const t = toLocalDateString(new Date())
+    setFromDate(t)
+    setToDate(t)
+  }
+
+  const selectYesterday = () => {
+    const y = toLocalDateString(new Date(Date.now() - 24 * 60 * 60 * 1000))
+    setFromDate(y)
+    setToDate(y)
+  }
+
   const handleExport = () => {
     downloadCsv(
       `product_sales_${fromDate}_${toDate}.csv`,
@@ -83,6 +95,20 @@ export default function ProductReport() {
             className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             📤 CSVエクスポート
+          </button>
+        </div>
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={selectToday}
+            className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+          >
+            📅 本日
+          </button>
+          <button
+            onClick={selectYesterday}
+            className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+          >
+            📅 前日
           </button>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
@@ -123,7 +149,7 @@ export default function ProductReport() {
       {/* Product ranking */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700">商品別売上ランキング</h3>
+          <h3 className="text-sm font-semibold text-gray-700">カテゴリー別売上ランキング</h3>
         </div>
         {loading ? (
           <div className="p-8 text-center text-gray-400 text-sm">読み込み中...</div>
