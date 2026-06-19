@@ -127,6 +127,17 @@ export default function DailyReport() {
     )
   }
 
+  const selectToday = () => {
+    setFromDate(today)
+    setToDate(today)
+  }
+
+  const selectYesterday = () => {
+    const yesterday = toLocalDateString(new Date(Date.now() - 24 * 60 * 60 * 1000))
+    setFromDate(yesterday)
+    setToDate(yesterday)
+  }
+
   return (
     <div className="space-y-4">
       {/* Date Range Picker Card */}
@@ -139,6 +150,20 @@ export default function DailyReport() {
             className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             📤 CSVエクスポート
+          </button>
+        </div>
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={selectToday}
+            className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+          >
+            📅 本日
+          </button>
+          <button
+            onClick={selectYesterday}
+            className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+          >
+            📅 前日
           </button>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
