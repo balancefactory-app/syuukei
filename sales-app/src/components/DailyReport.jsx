@@ -1,7 +1,25 @@
 import { useState, useEffect } from 'react'
-import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore'
+import { collection, query, where, orderBy, onSnapshot, Timestamp, updateDoc, deleteDoc, doc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { downloadCsv } from '../utils/csv'
+import useMasterList from '../hooks/useMasterList'
+
+const PRODUCT_DEFAULTS = [
+  'PST/PYG',
+  'YOGA',
+  'スマホ',
+  'バランス',
+  'プリカ',
+  'マッサージ',
+  '体操',
+  '加圧',
+  '小顔',
+  '水',
+  '鍼・よくばり',
+  '家賃',
+]
+
+const STAFF_NAMES = ['武衛', '中尾', '大鷹']
 
 function toLocalDateString(date) {
   const y = date.getFullYear()
@@ -14,6 +32,10 @@ export default function DailyReport() {
   const [selectedDate, setSelectedDate] = useState(toLocalDateString(new Date()))
   const [sales, setSales] = useState([])
   const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState(null)
+  const [editForm, setEditForm] = useState(null)
+  const { items: customers } = useMasterList('customers', [])
+  const { items: products } = useMasterList('products', PRODUCT_DEFAULTS)
 
   useEffect(() => {
     setLoading(true)
@@ -46,6 +68,45 @@ export default function DailyReport() {
   }, {})
 
   const paymentIcon = { '現金': '💴', 'カード': '💳', 'QR': '📱' }
+
+  const startEdit = (sale) => {
+    setEditingId(sale.id)
+    setEditForm({
+      customerName: sale.customerName || '',
+      productName: sale.productName || '',
+      amount: sale.amount || 0,
+      staffName: sale.staffName || '',
+      paymentMethod: sale.paymentMethod || '現金',
+      notes: sale.notes || '',
+    })
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditForm(null)
+  }
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target
+    setEditForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const saveEdit = async () => {
+    await updateDoc(doc(db, 'sales', editingId), {
+      customerName: editForm.customerName.trim(),
+      productName: editForm.productName,
+      amount: Number(editForm.amount),
+      staffName: editForm.staffName,
+      paymentMethod: editForm.paymentMethod,
+      notes: editForm.notes.trim(),
+    })
+    cancelEdit()
+  }
+
+  const handleDeleteSale = async (sale) => {
+    if (!window.confirm(`「${sale.productName}」（¥${(sale.amount || 0).toLocaleString()}）の売上を削除しますか？`)) return
+    await deleteDoc(doc(db, 'sales', sale.id))
+  }
 
   const handleExport = () => {
     downloadCsv(
@@ -126,30 +187,121 @@ export default function DailyReport() {
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {sales.map((sale) => (
-              <div key={sale.id} className="px-4 py-3">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{sale.productName}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {paymentIcon[sale.paymentMethod]} {sale.paymentMethod} ・ {sale.staffName}
-                      {sale.customerName && <> ・ 👤 {sale.customerName}</>}
-                    </p>
-                    {sale.notes && (
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{sale.notes}</p>
-                    )}
+            {sales.map((sale) =>
+              editingId === sale.id ? (
+                <div key={sale.id} className="px-4 py-3 bg-blue-50 space-y-2">
+                  <input
+                    type="text"
+                    name="customerName"
+                    value={editForm.customerName}
+                    onChange={handleEditChange}
+                    list="daily-edit-customer-suggestions"
+                    placeholder="顧客名"
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                  />
+                  <datalist id="daily-edit-customer-suggestions">
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.name} />
+                    ))}
+                  </datalist>
+                  <select
+                    name="productName"
+                    value={editForm.productName}
+                    onChange={handleEditChange}
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                  >
+                    {products.map((p) => (
+                      <option key={p.id} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    name="amount"
+                    value={editForm.amount}
+                    onChange={handleEditChange}
+                    min="0"
+                    step="1"
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                  />
+                  <select
+                    name="staffName"
+                    value={editForm.staffName}
+                    onChange={handleEditChange}
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                  >
+                    {STAFF_NAMES.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex gap-4">
+                    {['現金', 'カード', 'QR'].map((method) => (
+                      <label key={method} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value={method}
+                          checked={editForm.paymentMethod === method}
+                          onChange={handleEditChange}
+                          className="accent-blue-600 w-4 h-4"
+                        />
+                        {method}
+                      </label>
+                    ))}
                   </div>
-                  <div className="ml-3 text-right flex-shrink-0">
-                    <p className="text-sm font-bold text-blue-600">¥{(sale.amount || 0).toLocaleString()}</p>
-                    {sale.createdAt && (
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {sale.createdAt.toDate().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    )}
+                  <textarea
+                    name="notes"
+                    value={editForm.notes}
+                    onChange={handleEditChange}
+                    rows={2}
+                    placeholder="備考"
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm resize-none"
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={cancelEdit} className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">
+                      キャンセル
+                    </button>
+                    <button onClick={saveEdit} className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+                      保存
+                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              ) : (
+                <div key={sale.id} className="px-4 py-3">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{sale.productName}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {paymentIcon[sale.paymentMethod]} {sale.paymentMethod} ・ {sale.staffName}
+                        {sale.customerName && <> ・ 👤 {sale.customerName}</>}
+                      </p>
+                      {sale.notes && (
+                        <p className="text-xs text-gray-400 mt-0.5 truncate">{sale.notes}</p>
+                      )}
+                      <div className="flex gap-3 mt-1">
+                        <button onClick={() => startEdit(sale)} className="text-xs text-blue-600 hover:underline">
+                          編集
+                        </button>
+                        <button onClick={() => handleDeleteSale(sale)} className="text-xs text-red-500 hover:underline">
+                          削除
+                        </button>
+                      </div>
+                    </div>
+                    <div className="ml-3 text-right flex-shrink-0">
+                      <p className="text-sm font-bold text-blue-600">¥{(sale.amount || 0).toLocaleString()}</p>
+                      {sale.createdAt && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {sale.createdAt.toDate().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            )}
           </div>
         )}
         {sales.length > 0 && (
