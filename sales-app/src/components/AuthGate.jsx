@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react'
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth'
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { auth } from '../firebase'
 
-const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD
-
 export default function AuthGate({ children }) {
-  const [signedIn, setSignedIn] = useState(false)
+  const [user, setUser] = useState(null)
   const [checking, setChecking] = useState(true)
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      setSignedIn(!!user)
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u)
       setChecking(false)
     })
     return () => unsub()
@@ -21,19 +21,14 @@ export default function AuthGate({ children }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    if (!APP_PASSWORD) {
-      setError('パスワードが設定されていません。管理者に確認してください。')
-      return
-    }
-    if (password !== APP_PASSWORD) {
-      setError('パスワードが正しくありません')
-      return
-    }
+    setLoading(true)
     try {
-      await signInAnonymously(auth)
+      await signInWithEmailAndPassword(auth, email.trim(), password)
     } catch (err) {
       console.error(err)
-      setError('ログインに失敗しました')
+      setError('メールアドレスまたはパスワードが正しくありません')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -45,7 +40,7 @@ export default function AuthGate({ children }) {
     )
   }
 
-  if (!signedIn) {
+  if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <form
@@ -53,25 +48,50 @@ export default function AuthGate({ children }) {
           className="bg-white rounded-xl shadow-md p-6 w-full max-w-sm space-y-4"
         >
           <h1 className="text-lg font-bold text-gray-800 text-center">🔒 売上管理システム</h1>
-          <p className="text-sm text-gray-500 text-center">パスワードを入力してください</p>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoFocus
-            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <p className="text-sm text-gray-500 text-center">スタッフ用アカウントでログインしてください</p>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">メールアドレス</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">パスワード</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
           {error && <p className="text-sm text-red-500">{error}</p>}
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-blue-600 to-teal-600 text-white font-semibold py-2.5 rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all text-sm shadow-md"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-blue-600 to-teal-600 text-white font-semibold py-2.5 rounded-lg hover:from-blue-700 hover:to-teal-700 disabled:opacity-50 transition-all text-sm shadow-md"
           >
-            ログイン
+            {loading ? 'ログイン中...' : 'ログイン'}
           </button>
         </form>
       </div>
     )
   }
 
-  return children
+  return (
+    <div>
+      <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center justify-between text-xs text-gray-500">
+        <span>👤 {user.email}</span>
+        <button onClick={() => signOut(auth)} className="text-blue-600 hover:underline">
+          ログアウト
+        </button>
+      </div>
+      {children}
+    </div>
+  )
 }
