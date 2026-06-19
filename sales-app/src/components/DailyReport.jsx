@@ -29,7 +29,9 @@ function toLocalDateString(date) {
 }
 
 export default function DailyReport() {
-  const [selectedDate, setSelectedDate] = useState(toLocalDateString(new Date()))
+  const today = toLocalDateString(new Date())
+  const [fromDate, setFromDate] = useState(today)
+  const [toDate, setToDate] = useState(today)
   const [sales, setSales] = useState([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState(null)
@@ -38,9 +40,10 @@ export default function DailyReport() {
   const { items: products } = useMasterList('products', PRODUCT_DEFAULTS)
 
   useEffect(() => {
+    if (!fromDate || !toDate) return
     setLoading(true)
-    const start = new Date(selectedDate + 'T00:00:00')
-    const end = new Date(selectedDate + 'T23:59:59.999')
+    const start = new Date(fromDate + 'T00:00:00')
+    const end = new Date(toDate + 'T23:59:59.999')
 
     const q = query(
       collection(db, 'sales'),
@@ -58,7 +61,7 @@ export default function DailyReport() {
     })
 
     return () => unsub()
-  }, [selectedDate])
+  }, [fromDate, toDate])
 
   const total = sales.reduce((sum, s) => sum + (s.amount || 0), 0)
   const byPayment = sales.reduce((acc, s) => {
@@ -110,7 +113,7 @@ export default function DailyReport() {
 
   const handleExport = () => {
     downloadCsv(
-      `daily_sales_${selectedDate}.csv`,
+      `daily_sales_${fromDate}_${toDate}.csv`,
       ['日時', '顧客名', '商品名', '金額', '担当スタッフ', '支払い方法', '備考'],
       sales.map((s) => [
         s.createdAt ? s.createdAt.toDate().toLocaleString('ja-JP') : '',
@@ -126,24 +129,39 @@ export default function DailyReport() {
 
   return (
     <div className="space-y-4">
-      {/* Date Picker Card */}
-      <div className="bg-white rounded-xl shadow-md p-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">📅 日付を選択</label>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      {/* Date Range Picker Card */}
+      <div className="bg-white rounded-xl shadow-md p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-700">📅 期間を選択</h3>
+          <button
+            onClick={handleExport}
+            disabled={sales.length === 0}
+            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            📤 CSVエクスポート
+          </button>
         </div>
-        <button
-          onClick={handleExport}
-          disabled={sales.length === 0}
-          className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          📤 CSVエクスポート
-        </button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 mb-1">開始日</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex items-end justify-center pb-1 text-gray-400 hidden sm:flex">〜</div>
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 mb-1">終了日</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -183,7 +201,7 @@ export default function DailyReport() {
         ) : sales.length === 0 ? (
           <div className="p-8 text-center text-gray-400 text-sm">
             <p className="text-3xl mb-2">📭</p>
-            <p>この日の売上データはありません</p>
+            <p>この期間の売上データはありません</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
@@ -294,7 +312,9 @@ export default function DailyReport() {
                       <p className="text-sm font-bold text-blue-600">¥{(sale.amount || 0).toLocaleString()}</p>
                       {sale.createdAt && (
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {sale.createdAt.toDate().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                          {fromDate === toDate
+                            ? sale.createdAt.toDate().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+                            : sale.createdAt.toDate().toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       )}
                     </div>
