@@ -20,9 +20,37 @@ export function downloadCsv(filename, headers, rows) {
   URL.revokeObjectURL(url)
 }
 
+function parseCsvLine(line) {
+  const fields = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    if (inQuotes) {
+      if (char === '"' && line[i + 1] === '"') {
+        current += '"'
+        i++
+      } else if (char === '"') {
+        inQuotes = false
+      } else {
+        current += char
+      }
+    } else if (char === '"') {
+      inQuotes = true
+    } else if (char === ',') {
+      fields.push(current)
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  fields.push(current)
+  return fields
+}
+
 export function parseCsvNames(text) {
   return text
     .split(/\r?\n/)
-    .map((line) => line.replace(/^"|"$/g, '').trim())
-    .filter((line) => line.length > 0 && line !== '名前' && line !== 'name')
+    .map((line) => parseCsvLine(line)[0]?.trim() ?? '')
+    .filter((name) => name.length > 0 && name !== '名前' && name !== 'name')
 }

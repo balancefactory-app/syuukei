@@ -17,12 +17,19 @@ const PRODUCT_DEFAULTS = [
   '家賃',
 ]
 
+const PAGE_SIZE = 25
+
 function MasterSection({ title, icon, collectionName, seedDefaults, allowImportExport }) {
   const { items, loading, add, update, remove } = useMasterList(collectionName, seedDefaults)
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
+  const [page, setPage] = useState(0)
   const fileInputRef = useRef(null)
+
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages - 1)
+  const visibleItems = items.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
 
   const handleAdd = async (e) => {
     e.preventDefault()
@@ -123,7 +130,7 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
         <div className="p-6 text-center text-gray-400 text-sm">登録がありません</div>
       ) : (
         <div className="divide-y divide-gray-50 border border-gray-100 rounded-lg overflow-hidden">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <div key={item.id} className="flex items-center justify-between px-3 py-2">
               {editingId === item.id ? (
                 <input
@@ -168,6 +175,28 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {items.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-3">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={currentPage === 0}
+            className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            ← 前へ
+          </button>
+          <span className="text-xs text-gray-500">
+            {currentPage + 1} / {totalPages} ページ（全{items.length}件）
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={currentPage >= totalPages - 1}
+            className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            次へ →
+          </button>
         </div>
       )}
     </div>
