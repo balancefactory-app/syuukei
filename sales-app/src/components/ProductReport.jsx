@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore'
 import { db } from '../firebase'
+import { downloadCsv } from '../utils/csv'
 
 function toLocalDateString(date) {
   const y = date.getFullYear()
@@ -54,11 +55,36 @@ export default function ProductReport() {
   const sortedProducts = Object.entries(byProduct).sort((a, b) => b[1].total - a[1].total)
   const grandTotal = sales.reduce((sum, s) => sum + (s.amount || 0), 0)
 
+  const handleExport = () => {
+    downloadCsv(
+      `product_sales_${fromDate}_${toDate}.csv`,
+      ['日時', '顧客名', '商品名', '金額', '担当スタッフ', '支払い方法', '備考'],
+      sales.map((s) => [
+        s.createdAt ? s.createdAt.toDate().toLocaleString('ja-JP') : '',
+        s.customerName || '',
+        s.productName || '',
+        s.amount || 0,
+        s.staffName || '',
+        s.paymentMethod || '',
+        s.notes || '',
+      ])
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Date Range Picker */}
       <div className="bg-white rounded-xl shadow-md p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">📦 期間を選択</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-700">📦 期間を選択</h3>
+          <button
+            onClick={handleExport}
+            disabled={sales.length === 0}
+            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            📤 CSVエクスポート
+          </button>
+        </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1">
             <label className="block text-xs text-gray-500 mb-1">開始日</label>

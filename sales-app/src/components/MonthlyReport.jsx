@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore'
 import { db } from '../firebase'
+import { downloadCsv } from '../utils/csv'
 
 function toMonthString(date) {
   const y = date.getFullYear()
@@ -52,17 +53,42 @@ export default function MonthlyReport() {
   const grandTotal = sales.reduce((sum, s) => sum + (s.amount || 0), 0)
   const sortedDays = Object.keys(byDay).sort()
 
+  const handleExport = () => {
+    downloadCsv(
+      `monthly_sales_${selectedMonth}.csv`,
+      ['日時', '顧客名', '商品名', '金額', '担当スタッフ', '支払い方法', '備考'],
+      sales.map((s) => [
+        s.createdAt ? s.createdAt.toDate().toLocaleString('ja-JP') : '',
+        s.customerName || '',
+        s.productName || '',
+        s.amount || 0,
+        s.staffName || '',
+        s.paymentMethod || '',
+        s.notes || '',
+      ])
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Month Picker */}
-      <div className="bg-white rounded-xl shadow-md p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">📊 月を選択</label>
-        <input
-          type="month"
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      <div className="bg-white rounded-xl shadow-md p-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">📊 月を選択</label>
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={sales.length === 0}
+          className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          📤 CSVエクスポート
+        </button>
       </div>
 
       {/* Summary */}

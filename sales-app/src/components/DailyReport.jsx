@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore'
 import { db } from '../firebase'
+import { downloadCsv } from '../utils/csv'
 
 function toLocalDateString(date) {
   const y = date.getFullYear()
@@ -46,17 +47,42 @@ export default function DailyReport() {
 
   const paymentIcon = { '現金': '💴', 'カード': '💳', 'QR': '📱' }
 
+  const handleExport = () => {
+    downloadCsv(
+      `daily_sales_${selectedDate}.csv`,
+      ['日時', '顧客名', '商品名', '金額', '担当スタッフ', '支払い方法', '備考'],
+      sales.map((s) => [
+        s.createdAt ? s.createdAt.toDate().toLocaleString('ja-JP') : '',
+        s.customerName || '',
+        s.productName || '',
+        s.amount || 0,
+        s.staffName || '',
+        s.paymentMethod || '',
+        s.notes || '',
+      ])
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Date Picker Card */}
-      <div className="bg-white rounded-xl shadow-md p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">📅 日付を選択</label>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      <div className="bg-white rounded-xl shadow-md p-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">📅 日付を選択</label>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={sales.length === 0}
+          className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          📤 CSVエクスポート
+        </button>
       </div>
 
       {/* Summary Cards */}
@@ -107,6 +133,7 @@ export default function DailyReport() {
                     <p className="text-sm font-semibold text-gray-800 truncate">{sale.productName}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {paymentIcon[sale.paymentMethod]} {sale.paymentMethod} ・ {sale.staffName}
+                      {sale.customerName && <> ・ 👤 {sale.customerName}</>}
                     </p>
                     {sale.notes && (
                       <p className="text-xs text-gray-400 mt-0.5 truncate">{sale.notes}</p>

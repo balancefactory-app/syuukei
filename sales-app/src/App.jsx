@@ -3,12 +3,14 @@ import SalesForm from './components/SalesForm'
 import DailyReport from './components/DailyReport'
 import MonthlyReport from './components/MonthlyReport'
 import ProductReport from './components/ProductReport'
+import MasterData from './components/MasterData'
 
 const tabs = [
   { id: 'form', label: '売上入力', icon: '📝' },
   { id: 'daily', label: '日次レポート', icon: '📅' },
   { id: 'monthly', label: '月次レポート', icon: '📊' },
   { id: 'product', label: '商品別', icon: '📦' },
+  { id: 'master', label: '顧客・商品管理', icon: '🗂️' },
 ]
 
 export default function App() {
@@ -52,6 +54,7 @@ export default function App() {
         {activeTab === 'daily' && <DailyReport />}
         {activeTab === 'monthly' && <MonthlyReport />}
         {activeTab === 'product' && <ProductReport />}
+        {activeTab === 'master' && <MasterData />}
       </main>
     </div>
   )

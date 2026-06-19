@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase'
+import useMasterList from '../hooks/useMasterList'
 
-const CATEGORIES = [
+const PRODUCT_DEFAULTS = [
   'PST/PYG',
   'YOGA',
   'スマホ',
-  'その他',
   'バランス',
   'プリカ',
   'マッサージ',
@@ -15,15 +15,14 @@ const CATEGORIES = [
   '小顔',
   '水',
   '鍼・よくばり',
+  '家賃',
 ]
-
-const OTHER_SUB_ITEMS = ['家賃']
 
 const STAFF_NAMES = ['武衛', '中尾', '大鷹']
 
 const initialForm = {
+  customerName: '',
   productName: '',
-  otherSubItem: '',
   amount: '',
   staffName: '',
   paymentMethod: '現金',
@@ -34,14 +33,12 @@ export default function SalesForm() {
   const [form, setForm] = useState(initialForm)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState(null) // { type: 'success'|'error', text: string }
+  const { items: customers } = useMasterList('customers', [])
+  const { items: products } = useMasterList('products', PRODUCT_DEFAULTS)
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-      ...(name === 'productName' && value !== 'その他' ? { otherSubItem: '' } : {}),
-    }))
+    setForm((prev) => ({ ...prev, [name]: value }))
   }
 
   const handleSubmit = async (e) => {
@@ -50,13 +47,9 @@ export default function SalesForm() {
     setMessage(null)
 
     try {
-      const productName =
-        form.productName === 'その他' && form.otherSubItem
-          ? form.otherSubItem
-          : form.productName
-
       await addDoc(collection(db, 'sales'), {
-        productName,
+        customerName: form.customerName.trim(),
+        productName: form.productName,
         amount: Number(form.amount),
         staffName: form.staffName.trim(),
         paymentMethod: form.paymentMethod,
@@ -92,6 +85,26 @@ export default function SalesForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* 顧客名 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            顧客名 <span className="text-gray-400 text-xs font-normal">(任意)</span>
+          </label>
+          <select
+            name="customerName"
+            value={form.customerName}
+            onChange={handleChange}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+          >
+            <option value="">選択してください</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.name}>
+                {customer.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* 商品名 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -107,38 +120,13 @@ export default function SalesForm() {
             <option value="" disabled>
               選択してください
             </option>
-            {CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {category}
+            {products.map((product) => (
+              <option key={product.id} value={product.name}>
+                {product.name}
               </option>
             ))}
           </select>
         </div>
-
-        {/* その他の内訳 */}
-        {form.productName === 'その他' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              内訳 <span className="text-red-500">*</span>
-            </label>
-            <select
-              name="otherSubItem"
-              value={form.otherSubItem}
-              onChange={handleChange}
-              required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-            >
-              <option value="" disabled>
-                選択してください
-              </option>
-              {OTHER_SUB_ITEMS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
 
         {/* 受取り代金 */}
         <div>
