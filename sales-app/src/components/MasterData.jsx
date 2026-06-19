@@ -28,11 +28,16 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
   const [editingName, setEditingName] = useState('')
   const [page, setPage] = useState(0)
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [search, setSearch] = useState('')
   const fileInputRef = useRef(null)
 
-  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
+  const filteredItems = search.trim()
+    ? items.filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()))
+    : items
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages - 1)
-  const visibleItems = items.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
+  const visibleItems = filteredItems.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
   const allVisibleSelected =
     visibleItems.length > 0 && visibleItems.every((item) => selectedIds.has(item.id))
 
@@ -187,10 +192,23 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
         </button>
       </form>
 
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value)
+          setPage(0)
+        }}
+        placeholder={`${title}を検索`}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+
       {loading ? (
         <div className="p-6 text-center text-gray-400 text-sm">読み込み中...</div>
       ) : items.length === 0 ? (
         <div className="p-6 text-center text-gray-400 text-sm">登録がありません</div>
+      ) : filteredItems.length === 0 ? (
+        <div className="p-6 text-center text-gray-400 text-sm">該当する{title}が見つかりません</div>
       ) : (
         <>
           <div className="flex items-center justify-between mb-2">
@@ -270,7 +288,7 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
         </>
       )}
 
-      {items.length > PAGE_SIZE && (
+      {filteredItems.length > PAGE_SIZE && (
         <div className="flex items-center justify-between mt-3">
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
@@ -280,7 +298,7 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
             ← 前へ
           </button>
           <span className="text-xs text-gray-500">
-            {currentPage + 1} / {totalPages} ページ（全{items.length}件）
+            {currentPage + 1} / {totalPages} ページ（全{filteredItems.length}件）
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
