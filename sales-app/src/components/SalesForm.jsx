@@ -2,8 +2,26 @@ import { useState } from 'react'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase'
 
+const CATEGORIES = [
+  'PST/PYG',
+  'YOGA',
+  'スマホ',
+  'その他',
+  'バランス',
+  'プリカ',
+  'マッサージ',
+  '体操',
+  '加圧',
+  '小顔',
+  '水',
+  '鍼・よくばり',
+]
+
+const OTHER_SUB_ITEMS = ['家賃']
+
 const initialForm = {
   productName: '',
+  otherSubItem: '',
   amount: '',
   staffName: '',
   paymentMethod: '現金',
@@ -17,7 +35,11 @@ export default function SalesForm() {
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setForm((prev) => ({ ...prev, [name]: value }))
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'productName' && value !== 'その他' ? { otherSubItem: '' } : {}),
+    }))
   }
 
   const handleSubmit = async (e) => {
@@ -26,8 +48,13 @@ export default function SalesForm() {
     setMessage(null)
 
     try {
+      const productName =
+        form.productName === 'その他' && form.otherSubItem
+          ? form.otherSubItem
+          : form.productName
+
       await addDoc(collection(db, 'sales'), {
-        productName: form.productName.trim(),
+        productName,
         amount: Number(form.amount),
         staffName: form.staffName.trim(),
         paymentMethod: form.paymentMethod,
@@ -68,16 +95,48 @@ export default function SalesForm() {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             商品名 <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
+          <select
             name="productName"
             value={form.productName}
             onChange={handleChange}
             required
-            placeholder="例: アイスクリーム"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+          >
+            <option value="" disabled>
+              選択してください
+            </option>
+            {CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
         </div>
+
+        {/* その他の内訳 */}
+        {form.productName === 'その他' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              内訳 <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="otherSubItem"
+              value={form.otherSubItem}
+              onChange={handleChange}
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            >
+              <option value="" disabled>
+                選択してください
+              </option>
+              {OTHER_SUB_ITEMS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* 受取り代金 */}
         <div>
