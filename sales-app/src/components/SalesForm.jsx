@@ -90,19 +90,21 @@ export default function SalesForm() {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             顧客名 <span className="text-gray-400 text-xs font-normal">(任意)</span>
           </label>
-          <select
+          <input
+            type="text"
             name="customerName"
             value={form.customerName}
             onChange={handleChange}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-          >
-            <option value="">選択してください</option>
+            list="customer-suggestions"
+            autoComplete="off"
+            placeholder="例: 山田太郎"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <datalist id="customer-suggestions">
             {customers.map((customer) => (
-              <option key={customer.id} value={customer.name}>
-                {customer.name}
-              </option>
+              <option key={customer.id} value={customer.name} />
             ))}
-          </select>
+          </datalist>
         </div>
 
         {/* 商品名 */}
