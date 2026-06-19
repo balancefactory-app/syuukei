@@ -54,3 +54,20 @@ export function parseCsvNames(text) {
     .map((line) => parseCsvLine(line)[0]?.trim() ?? '')
     .filter((name) => name.length > 0 && name !== '名前' && name !== 'name')
 }
+
+export function parseCsvByColumn(text, headerCandidates) {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0)
+  if (lines.length === 0) return []
+
+  const header = parseCsvLine(lines[0]).map((h) => h.trim())
+  const colIndex = header.findIndex((h) => headerCandidates.includes(h))
+
+  if (colIndex === -1) {
+    return lines.map((line) => parseCsvLine(line)[0]?.trim() ?? '').filter((name) => name.length > 0)
+  }
+
+  return lines
+    .slice(1)
+    .map((line) => parseCsvLine(line)[colIndex]?.trim() ?? '')
+    .filter((name) => name.length > 0)
+}

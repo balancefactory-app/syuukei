@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
 import useMasterList from '../hooks/useMasterList'
-import { downloadCsv, parseCsvNames } from '../utils/csv'
+import { downloadCsv, parseCsvNames, parseCsvByColumn } from '../utils/csv'
+
+const CUSTOMER_NAME_HEADERS = ['お客様名', '顧客名', '名前', 'name']
 
 const PRODUCT_DEFAULTS = [
   'PST/PYG',
@@ -19,7 +21,7 @@ const PRODUCT_DEFAULTS = [
 
 const PAGE_SIZE = 25
 
-function MasterSection({ title, icon, collectionName, seedDefaults, allowImportExport }) {
+function MasterSection({ title, icon, collectionName, seedDefaults, allowImportExport, importColumnHeaders }) {
   const { items, loading, add, update, remove } = useMasterList(collectionName, seedDefaults)
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState(null)
@@ -67,6 +69,15 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
     setSelectedIds(new Set())
   }
 
+  const handleDeleteAll = async () => {
+    if (items.length === 0) return
+    if (!window.confirm(`${title}を全件（${items.length}件）削除しますか？この操作は元に戻せません。`)) return
+    for (const item of items) {
+      await remove(item.id)
+    }
+    setSelectedIds(new Set())
+  }
+
   const handleAdd = async (e) => {
     e.preventDefault()
     if (!newName.trim()) return
@@ -102,7 +113,9 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
     const file = e.target.files?.[0]
     if (!file) return
     const text = await file.text()
-    const names = parseCsvNames(text)
+    const names = importColumnHeaders
+      ? parseCsvByColumn(text, importColumnHeaders)
+      : parseCsvNames(text)
     const existing = new Set(items.map((item) => item.name))
     for (const name of names) {
       if (!existing.has(name)) {
@@ -139,6 +152,13 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
               className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
             >
               📤 エクスポート
+            </button>
+            <button
+              onClick={handleDeleteAll}
+              disabled={items.length === 0}
+              className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              🗑️ 全件削除
             </button>
           </div>
         )}
@@ -277,6 +297,7 @@ export default function MasterData() {
         collectionName="customers"
         seedDefaults={[]}
         allowImportExport
+        importColumnHeaders={CUSTOMER_NAME_HEADERS}
       />
       <MasterSection
         title="商品"
