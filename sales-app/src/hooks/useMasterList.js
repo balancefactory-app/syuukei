@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import {
   collection,
   query,
-  orderBy,
   onSnapshot,
   addDoc,
   updateDoc,
@@ -11,13 +10,15 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 
+const collator = new Intl.Collator('ja')
+
 export default function useMasterList(collectionName, seedDefaults = []) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const hasSeeded = useRef(false)
 
   useEffect(() => {
-    const q = query(collection(db, collectionName), orderBy('name', 'asc'))
+    const q = query(collection(db, collectionName))
     const unsub = onSnapshot(q, async (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
       if (list.length === 0 && seedDefaults.length > 0 && !hasSeeded.current) {
@@ -27,6 +28,7 @@ export default function useMasterList(collectionName, seedDefaults = []) {
         }
         return
       }
+      list.sort((a, b) => collator.compare(a.name, b.name))
       setItems(list)
       setLoading(false)
     })
