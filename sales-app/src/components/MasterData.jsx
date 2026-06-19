@@ -25,11 +25,47 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
   const [page, setPage] = useState(0)
+  const [selectedIds, setSelectedIds] = useState(new Set())
   const fileInputRef = useRef(null)
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages - 1)
   const visibleItems = items.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
+  const allVisibleSelected =
+    visibleItems.length > 0 && visibleItems.every((item) => selectedIds.has(item.id))
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const toggleSelectAllVisible = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (allVisibleSelected) {
+        visibleItems.forEach((item) => next.delete(item.id))
+      } else {
+        visibleItems.forEach((item) => next.add(item.id))
+      }
+      return next
+    })
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`選択した${selectedIds.size}件を削除しますか？`)) return
+    for (const id of selectedIds) {
+      await remove(id)
+    }
+    setSelectedIds(new Set())
+  }
 
   const handleAdd = async (e) => {
     e.preventDefault()
@@ -129,53 +165,82 @@ function MasterSection({ title, icon, collectionName, seedDefaults, allowImportE
       ) : items.length === 0 ? (
         <div className="p-6 text-center text-gray-400 text-sm">登録がありません</div>
       ) : (
-        <div className="divide-y divide-gray-50 border border-gray-100 rounded-lg overflow-hidden">
-          {visibleItems.map((item) => (
-            <div key={item.id} className="flex items-center justify-between px-3 py-2">
-              {editingId === item.id ? (
-                <input
-                  type="text"
-                  value={editingName}
-                  onChange={(e) => setEditingName(e.target.value)}
-                  className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm mr-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  autoFocus
-                />
-              ) : (
-                <span className="text-sm text-gray-800">{item.name}</span>
-              )}
-              <div className="flex gap-2 flex-shrink-0">
-                {editingId === item.id ? (
-                  <>
-                    <button onClick={saveEdit} className="text-xs text-green-600 hover:underline">
-                      保存
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="text-xs text-gray-400 hover:underline"
-                    >
-                      キャンセル
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => startEdit(item)}
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      編集
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item)}
-                      className="text-xs text-red-500 hover:underline"
-                    >
-                      削除
-                    </button>
-                  </>
-                )}
+        <>
+          <div className="flex items-center justify-between mb-2">
+            <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleSelectAllVisible}
+                className="w-4 h-4 accent-blue-600"
+              />
+              このページを全て選択
+            </label>
+            {selectedIds.size > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+              >
+                🗑️ 選択した{selectedIds.size}件を削除
+              </button>
+            )}
+          </div>
+          <div className="divide-y divide-gray-50 border border-gray-100 rounded-lg overflow-hidden">
+            {visibleItems.map((item) => (
+              <div key={item.id} className="flex items-center justify-between px-3 py-2">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(item.id)}
+                    onChange={() => toggleSelect(item.id)}
+                    className="w-4 h-4 accent-blue-600 flex-shrink-0"
+                  />
+                  {editingId === item.id ? (
+                    <input
+                      type="text"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm mr-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      autoFocus
+                    />
+                  ) : (
+                    <span className="text-sm text-gray-800 truncate">{item.name}</span>
+                  )}
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  {editingId === item.id ? (
+                    <>
+                      <button onClick={saveEdit} className="text-xs text-green-600 hover:underline">
+                        保存
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="text-xs text-gray-400 hover:underline"
+                      >
+                        キャンセル
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => startEdit(item)}
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        編集
+                      </button>
+                      <button
+                        onClick={() => handleDelete(item)}
+                        className="text-xs text-red-500 hover:underline"
+                      >
+                        削除
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
 
       {items.length > PAGE_SIZE && (
