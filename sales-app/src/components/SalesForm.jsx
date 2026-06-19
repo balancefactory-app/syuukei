@@ -19,6 +19,8 @@ const CATEGORIES = [
 
 const OTHER_SUB_ITEMS = ['家賃']
 
+const STAFF_NAMES = ['武衛', '中尾', '大鷹']
+
 const initialForm = {
   productName: '',
   otherSubItem: '',
@@ -161,15 +163,22 @@ export default function SalesForm() {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             担当スタッフ名 <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
+          <select
             name="staffName"
             value={form.staffName}
             onChange={handleChange}
             required
-            placeholder="例: 田中"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+          >
+            <option value="" disabled>
+              選択してください
+            </option>
+            {STAFF_NAMES.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* 支払い方法 */}
