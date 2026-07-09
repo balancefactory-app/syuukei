@@ -1,0 +1,271 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * プロトタイプ (therapy-english-coach.html) の見た目を維持するためのスタイル。
+ * パレット・フォントは tailwind.config.ts / layout.tsx で定義。
+ */
+
+:root {
+  --bg-cream: #faf6ec;
+  --sage: #8fa888;
+  --sage-light: #e7eee2;
+  --sage-mid: #b7c9af;
+  --sage-dark: #5c7455;
+  --beige: #efe5ce;
+  --beige-dark: #d9c9a2;
+  --wood: #ad8a57;
+  --wood-dark: #8a6b3e;
+  --ink: #3c392f;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-cream);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-mincho), "Shippori Mincho", serif;
+  font-weight: 700;
+  margin: 0;
+  color: var(--sage-dark);
+}
+
+/* のれん装飾（画面上部の半円リピート）*/
+.noren {
+  height: 14px;
+  width: 100%;
+  background: linear-gradient(
+    180deg,
+    var(--sage) 0%,
+    var(--sage) 60%,
+    transparent 60%
+  );
+  -webkit-mask-image: radial-gradient(circle 7px at 7px 0, transparent 6px, black 7px);
+  -webkit-mask-repeat: repeat-x;
+  -webkit-mask-size: 14px 14px;
+  mask-image: radial-gradient(circle 7px at 7px 0, transparent 6px, black 7px);
+  mask-repeat: repeat-x;
+  mask-size: 14px 14px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.press {
+  transition: transform 0.08s ease;
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+@layer components {
+  /* カード */
+  .tec-card {
+    @apply bg-white rounded-card border border-beige-dark shadow-card;
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+
+  /* ボタン */
+  .btn {
+    @apply flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border-0 text-base font-bold press;
+    padding: 16px 18px;
+  }
+  .btn-primary {
+    @apply bg-sage-dark text-white;
+  }
+  .btn-secondary {
+    @apply border-2 border-sage-mid bg-white text-sage-dark;
+  }
+  .btn-ghost {
+    @apply border border-beige-dark bg-transparent text-ink-soft;
+  }
+
+  /* タグ・見出し */
+  .tag {
+    @apply mb-1.5 inline-block rounded-full bg-beige px-2.5 py-[3px] text-[11px] font-bold text-wood-dark;
+  }
+  .section-title {
+    @apply mb-2 mt-[18px] text-sm font-bold tracking-wide text-wood-dark;
+  }
+  .section-title-first {
+    @apply mt-0;
+  }
+
+  /* チップ（横スクロール）*/
+  .chip {
+    @apply shrink-0 cursor-pointer whitespace-nowrap rounded-full border border-beige-dark bg-white px-3.5 py-2 text-xs text-ink-soft;
+  }
+  .chip-active {
+    @apply border-sage-dark bg-sage-dark text-white;
+  }
+
+  /* 指標（結果画面）*/
+  .metric {
+    @apply rounded-[14px] bg-sage-light;
+    padding: 12px 14px;
+  }
+  .metric-num {
+    @apply font-serif text-2xl font-bold text-sage-dark;
+  }
+  .metric-lbl {
+    @apply text-[11px] text-ink-soft;
+  }
+
+  /* フレーズカード */
+  .phrase-card {
+    @apply mb-2.5 rounded-2xl border border-beige-dark bg-white shadow-card;
+    padding: 14px 16px;
+  }
+  .eng-badge {
+    @apply w-11 shrink-0 rounded-md py-[3px] text-center text-[10px] font-bold;
+  }
+  .eng-badge-simple {
+    @apply bg-simple-bg text-simple-txt;
+  }
+  .eng-badge-natural {
+    @apply bg-natural-bg text-natural-txt;
+  }
+  .kana {
+    @apply mt-1 text-[11px] leading-relaxed text-wood-dark;
+  }
+  .meta-row {
+    @apply mt-2 text-[11px] leading-relaxed text-ink-soft;
+  }
+
+  /* 丸アイコンボタン */
+  .icon-btn {
+    @apply flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-sage-light text-sm text-sage-dark;
+  }
+  .icon-btn-saved {
+    @apply bg-wood text-white;
+  }
+
+  /* チャット吹き出し */
+  .bubble {
+    @apply text-[15px] leading-relaxed;
+    max-width: 84%;
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+  .bubble-ai {
+    @apply self-start bg-sage-light text-ink;
+    border-bottom-left-radius: 4px;
+  }
+  .bubble-user {
+    @apply self-end bg-wood text-white;
+    border-bottom-right-radius: 4px;
+  }
+  .bubble-tip {
+    @apply self-center bg-beige text-[12px] text-wood-dark;
+    max-width: 92%;
+    border-radius: 12px;
+    border: 1px dashed var(--wood);
+  }
+
+  /* ペルソナカード */
+  .persona-card {
+    @apply mb-2.5 flex items-center gap-3 rounded-2xl border border-beige-dark bg-white shadow-card;
+    padding: 12px 14px;
+  }
+
+  /* シナリオカード */
+  .scenario-card {
+    @apply flex cursor-pointer flex-col gap-1 rounded-2xl border border-beige-dark bg-white text-left shadow-card press;
+    padding: 14px 12px;
+  }
+
+  /* 注意・OK ボックス */
+  .warn-box {
+    @apply rounded-[14px] bg-warn-bg text-[13px] leading-relaxed text-warn;
+    padding: 12px 14px;
+  }
+  .ok-box {
+    @apply rounded-[14px] bg-ok-bg text-[13px] leading-relaxed text-ok;
+    padding: 12px 14px;
+  }
+
+  /* 空状態 */
+  .empty {
+    @apply text-center text-ink-soft;
+    padding: 40px 10px;
+  }
+
+  /* 進捗バー */
+  .bar-bg {
+    @apply mt-1 h-2 w-full overflow-hidden rounded bg-beige;
+  }
+  .bar-fill {
+    @apply h-full rounded bg-sage-dark;
+  }
+
+  /* ホームのヒーロー */
+  .home-hero {
+    @apply mb-4 rounded-[22px] border border-beige-dark;
+    padding: 22px 20px;
+    background: linear-gradient(135deg, var(--sage-light) 0%, var(--beige) 100%);
+  }
+  .stat {
+    @apply flex-1 rounded-xl text-center;
+    background: rgba(255, 255, 255, 0.6);
+    padding: 10px;
+  }
+
+  /* 改善ポイント */
+  .improve-card {
+    @apply mb-2.5 rounded-2xl border border-beige-dark bg-white shadow-card;
+    padding: 14px 16px;
+  }
+  .improve-num {
+    @apply mr-1.5 inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-sage-dark text-[12px] font-bold text-white;
+  }
+  .arrow-from {
+    @apply text-[13px] text-simple-txt line-through;
+    text-decoration-color: var(--beige-dark);
+  }
+  .arrow-to {
+    @apply text-sm font-bold text-natural-txt;
+  }
+
+  /* 復習の間違いカード */
+  .mistake-card {
+    @apply mb-2.5 rounded-2xl border border-beige-dark bg-white shadow-card;
+    padding: 14px 16px;
+  }
+  .master-btn {
+    @apply cursor-pointer rounded-full border border-sage-mid bg-white px-2.5 py-[5px] text-[11px] text-sage-dark;
+  }
+  .master-btn-on {
+    @apply border-sage-dark bg-sage-dark text-white;
+  }
+
+  /* 入力欄 */
+  .composer {
+    @apply flex items-end gap-2 rounded-2xl border border-beige-dark bg-white;
+    padding: 8px;
+  }
+
+  /* ボトムナビ */
+  .navbtn {
+    @apply flex flex-1 cursor-pointer flex-col items-center gap-0.5 rounded-xl border-0 bg-transparent py-1.5 text-[11px] text-ink-soft;
+  }
+  .navbtn-active {
+    @apply bg-sage-light text-sage-dark;
+  }
+}
