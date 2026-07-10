@@ -7,12 +7,17 @@ import {
 } from "@/lib/supabase/config";
 
 /**
- * middleware から呼び出し、Supabase の認証セッションを更新（トークンリフレッシュ）する。
- * Supabase 未構成時は素通し。
+ * middleware から呼び出し、Supabase 認証セッションの更新と
+ * 「ログイン必須化（スタッフ限定公開）」を行う。
+ *
+ * - Supabase 未構成時: 認証を要求せず素通し（ゲストモード / お試し用）。
+ * - Supabase 構成時: 未ログインのユーザーはログイン画面へリダイレクトする。
+ *   これにより、アカウントを持つスタッフだけがアプリを利用できる。
  */
 export async function updateSession(request: NextRequest): Promise<NextResponse> {
   const response = NextResponse.next({ request });
 
+  // Supabase 未構成ならゲストモード（誰でも利用可）
   if (!isSupabaseConfigured()) return response;
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -28,8 +33,24 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     },
   });
 
-  // getUser() を呼ぶことでセッションが検証・更新される。
-  await supabase.auth.getUser();
+  // getUser() でセッションを検証・更新する
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const path = request.nextUrl.pathname;
+  // 認証不要で通すパス（ログイン画面・API・認証コールバック）
+  const isPublic =
+    path.startsWith("/login") ||
+    path.startsWith("/api") ||
+    path.startsWith("/auth");
+
+  // 未ログインならログイン画面へ
+  if (!user && !isPublic) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
 
   return response;
 }

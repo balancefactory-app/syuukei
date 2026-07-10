@@ -18,6 +18,9 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const configured = isSupabaseConfigured();
+  // 既定ではスタッフの自己登録を無効化（アカウントは管理者が発行）。
+  // NEXT_PUBLIC_ALLOW_SIGNUP=true を設定すると新規登録ボタンを表示する。
+  const allowSignup = process.env.NEXT_PUBLIC_ALLOW_SIGNUP === "true";
 
   async function signIn() {
     const supabase = getBrowserSupabase();
@@ -108,14 +111,23 @@ export default function LoginPage() {
             >
               ログイン
             </button>
-            <button
-              className="btn btn-secondary disabled:opacity-60"
-              disabled={busy || !email || !password}
-              onClick={() => void signUp()}
-            >
-              新規登録
-            </button>
+            {allowSignup && (
+              <button
+                className="btn btn-secondary disabled:opacity-60"
+                disabled={busy || !email || !password}
+                onClick={() => void signUp()}
+              >
+                新規登録
+              </button>
+            )}
           </div>
+
+          {!allowSignup && (
+            <p className="mt-3 text-center text-[12px] leading-relaxed text-ink-soft">
+              アカウントは管理者が発行します。ログインできない場合は
+              店舗の管理者にお問い合わせください。
+            </p>
+          )}
         </>
       )}
     </AppFrame>
