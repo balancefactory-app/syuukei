@@ -9,7 +9,7 @@ import { SALON_MENU } from "@/data/categories";
 export default function HomePage() {
   const router = useRouter();
   const progress = useAppStore((s) => s.progress);
-  const usingSupabase = useAppStore((s) => s.usingSupabase);
+  const authEnabled = useAppStore((s) => s.authEnabled);
   const userEmail = useAppStore((s) => s.userEmail);
   const signOut = useAppStore((s) => s.signOut);
 
@@ -87,8 +87,8 @@ export default function HomePage() {
         と伝えたり、翻訳アプリを使ったりしながら、少しずつ慣れていきましょう。
       </div>
 
-      {/* アカウント状態（Supabase構成時のみ）*/}
-      {usingSupabase && (
+      {/* アカウント状態（Firebase構成時のみ）*/}
+      {authEnabled && (
         <div className="mt-4 text-center text-[12px] text-ink-soft">
           {userEmail ? (
             <>

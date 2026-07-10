@@ -2,10 +2,38 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
+import { FirebaseError } from "firebase/app";
 import AppFrame from "@/components/AppFrame";
-import { getBrowserSupabase } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { getFirebase } from "@/lib/firebase/client";
+import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { useAppStore } from "@/lib/store";
+
+/** Firebase の認証エラーを日本語に変換 */
+function toJaError(err: unknown): string {
+  if (err instanceof FirebaseError) {
+    switch (err.code) {
+      case "auth/invalid-email":
+        return "メールアドレスの形式が正しくありません。";
+      case "auth/invalid-credential":
+      case "auth/wrong-password":
+      case "auth/user-not-found":
+        return "メールアドレスまたはパスワードが違います。";
+      case "auth/too-many-requests":
+        return "試行回数が多すぎます。しばらく待ってからお試しください。";
+      case "auth/email-already-in-use":
+        return "このメールアドレスは既に登録されています。";
+      case "auth/weak-password":
+        return "パスワードは6文字以上にしてください。";
+      default:
+        return err.message;
+    }
+  }
+  return "エラーが発生しました。もう一度お試しください。";
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,47 +42,41 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const configured = isSupabaseConfigured();
+  const configured = isFirebaseConfigured();
   // 既定ではスタッフの自己登録を無効化（アカウントは管理者が発行）。
-  // NEXT_PUBLIC_ALLOW_SIGNUP=true を設定すると新規登録ボタンを表示する。
   const allowSignup = process.env.NEXT_PUBLIC_ALLOW_SIGNUP === "true";
 
   async function signIn() {
-    const supabase = getBrowserSupabase();
-    if (!supabase) return;
+    const fb = getFirebase();
+    if (!fb) return;
     setBusy(true);
     setError(null);
-    setMessage(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) {
-      setError(error.message);
-      return;
+    try {
+      await signInWithEmailAndPassword(fb.auth, email, password);
+      await reloadProgress();
+      router.push("/");
+    } catch (err) {
+      setError(toJaError(err));
+    } finally {
+      setBusy(false);
     }
-    await reloadProgress();
-    router.push("/");
   }
 
   async function signUp() {
-    const supabase = getBrowserSupabase();
-    if (!supabase) return;
+    const fb = getFirebase();
+    if (!fb) return;
     setBusy(true);
     setError(null);
-    setMessage(null);
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    setBusy(false);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    if (data.session) {
+    try {
+      await createUserWithEmailAndPassword(fb.auth, email, password);
       await reloadProgress();
       router.push("/");
-    } else {
-      setMessage("確認メールを送信しました。メール内のリンクから登録を完了してください。");
+    } catch (err) {
+      setError(toJaError(err));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -64,15 +86,15 @@ export default function LoginPage() {
         <div className="ok-box">
           現在はゲストモードで動作しています。学習データはこの端末に保存されます。
           <br />
-          複数のスタッフでアカウントごとに進捗を管理するには、環境変数に Supabase
+          複数のスタッフでアカウントごとに進捗を管理するには、環境変数に Firebase
           を設定してください。
         </div>
       ) : (
         <>
           <div className="tec-card">
             <p className="mb-3 text-[13px] leading-relaxed text-ink-soft">
-              スタッフごとにアカウントを作成すると、練習履歴・保存フレーズ・復習リストを
-              端末を問わず引き継げます。
+              スタッフごとのアカウントでログインすると、練習履歴・保存フレーズ・
+              復習リストを端末を問わず引き継げます。
             </p>
 
             <label className="mb-1 block text-xs font-bold text-wood-dark">
@@ -101,7 +123,6 @@ export default function LoginPage() {
           </div>
 
           {error && <div className="warn-box mb-3">{error}</div>}
-          {message && <div className="ok-box mb-3">{message}</div>}
 
           <div className="flex flex-col gap-3">
             <button

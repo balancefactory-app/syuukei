@@ -1,12 +1,24 @@
 "use client";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  setDoc,
+  updateDoc,
+  writeBatch,
+  type Firestore,
+} from "firebase/firestore";
 import type { Mistake, ProgressSnapshot, SavedPhrase } from "@/lib/types";
 
 /**
  * 学習進捗の永続化レイヤー。
- * - ログイン時: Supabase（RLS付きテーブル）
- * - 未ログイン / Supabase未構成: localStorage（ゲストモード）
+ * - ログイン時: Firestore（`users/{uid}/...` サブコレクション）
+ * - 未ログイン / Firebase未構成: localStorage（ゲストモード）
  * どちらも同じ ProgressRepo インターフェースを実装する。
  */
 
@@ -73,7 +85,6 @@ class LocalRepo implements ProgressRepo {
     const data = this.read();
     data.sessionsDone += 1;
     data.scoreHistory.push(input.overall);
-    // 新しい間違いを先頭に追加（プロトタイプ踏襲）
     data.mistakeBank = [...input.mistakes, ...data.mistakeBank];
     this.write(data);
   }
@@ -103,35 +114,28 @@ class LocalRepo implements ProgressRepo {
   }
 }
 
-// --- Supabase 実装（ログイン時）-------------------------------------------
+// --- Firestore 実装（ログイン時）------------------------------------------
 
-class SupabaseRepo implements ProgressRepo {
+class FirestoreRepo implements ProgressRepo {
   constructor(
-    private readonly supabase: SupabaseClient,
-    private readonly userId: string,
+    private readonly db: Firestore,
+    private readonly uid: string,
   ) {}
 
+  private col(name: string) {
+    return collection(this.db, "users", this.uid, name);
+  }
+
   async load(): Promise<ProgressSnapshot> {
-    const [sessionsRes, phrasesRes, mistakesRes] = await Promise.all([
-      this.supabase
-        .from("sessions")
-        .select("overall, created_at")
-        .eq("user_id", this.userId)
-        .order("created_at", { ascending: true }),
-      this.supabase
-        .from("saved_phrases")
-        .select("key, ja, simple, natural, kana")
-        .eq("user_id", this.userId),
-      this.supabase
-        .from("mistakes")
-        .select("id, scenario_ja, label, from_text, to_text, kana, note, mastered, created_at")
-        .eq("user_id", this.userId)
-        .order("created_at", { ascending: false }),
+    const [sessionsSnap, phrasesSnap, mistakesSnap] = await Promise.all([
+      getDocs(query(this.col("sessions"), orderBy("createdAt", "asc"))),
+      getDocs(this.col("savedPhrases")),
+      getDocs(query(this.col("mistakes"), orderBy("createdAt", "desc"))),
     ]);
 
-    const sessions = sessionsRes.data ?? [];
     const savedPhrases: Record<string, SavedPhrase> = {};
-    for (const p of phrasesRes.data ?? []) {
+    phrasesSnap.forEach((d) => {
+      const p = d.data() as SavedPhrase;
       savedPhrases[p.key] = {
         key: p.key,
         ja: p.ja,
@@ -139,97 +143,113 @@ class SupabaseRepo implements ProgressRepo {
         natural: p.natural,
         kana: p.kana,
       };
-    }
+    });
 
-    const mistakeBank: Mistake[] = (mistakesRes.data ?? []).map((m) => ({
-      id: m.id,
-      scenarioJa: m.scenario_ja,
-      label: m.label,
-      from: m.from_text,
-      to: m.to_text,
-      kana: m.kana ?? "",
-      note: m.note ?? "",
-      date: new Date(m.created_at).toLocaleDateString("ja-JP"),
-      mastered: m.mastered,
-    }));
+    const mistakeBank: Mistake[] = mistakesSnap.docs.map((d) => {
+      const m = d.data() as {
+        scenarioJa: string;
+        label: string;
+        from: string;
+        to: string;
+        kana?: string;
+        note?: string;
+        mastered: boolean;
+        createdAt: number;
+      };
+      return {
+        id: d.id,
+        scenarioJa: m.scenarioJa,
+        label: m.label,
+        from: m.from,
+        to: m.to,
+        kana: m.kana ?? "",
+        note: m.note ?? "",
+        date: new Date(m.createdAt).toLocaleDateString("ja-JP"),
+        mastered: m.mastered,
+      };
+    });
+
+    const scoreHistory = sessionsSnap.docs.map(
+      (d) => (d.data() as { overall: number }).overall,
+    );
 
     return {
-      sessionsDone: sessions.length,
-      scoreHistory: sessions.map((s) => s.overall),
+      sessionsDone: sessionsSnap.size,
+      scoreHistory,
       savedPhrases,
       mistakeBank,
     };
   }
 
   async addSession(input: AddSessionInput): Promise<void> {
-    await this.supabase.from("sessions").insert({
-      user_id: this.userId,
+    const now = Date.now();
+    await addDoc(this.col("sessions"), {
       overall: input.overall,
-      scenario_id: input.scenarioId,
-      scenario_ja: input.scenarioJa,
+      scenarioId: input.scenarioId,
+      scenarioJa: input.scenarioJa,
+      createdAt: now,
     });
 
-    if (input.mistakes.length > 0) {
-      await this.supabase.from("mistakes").insert(
-        input.mistakes.map((m) => ({
-          id: m.id,
-          user_id: this.userId,
-          scenario_ja: m.scenarioJa,
+    await Promise.all(
+      input.mistakes.map((m, i) =>
+        setDoc(doc(this.col("mistakes"), m.id), {
+          scenarioJa: m.scenarioJa,
           label: m.label,
-          from_text: m.from,
-          to_text: m.to,
+          from: m.from,
+          to: m.to,
           kana: m.kana,
           note: m.note,
           mastered: m.mastered,
-        })),
-      );
-    }
-  }
-
-  async addSavedPhrase(phrase: SavedPhrase): Promise<void> {
-    await this.supabase.from("saved_phrases").upsert(
-      {
-        user_id: this.userId,
-        key: phrase.key,
-        ja: phrase.ja,
-        simple: phrase.simple,
-        natural: phrase.natural,
-        kana: phrase.kana,
-      },
-      { onConflict: "user_id,key" },
+          // 同一セッション内の並び順を保つため i をわずかに加算
+          createdAt: now + i,
+        }),
+      ),
     );
   }
 
+  async addSavedPhrase(phrase: SavedPhrase): Promise<void> {
+    await setDoc(doc(this.col("savedPhrases"), phrase.key), {
+      key: phrase.key,
+      ja: phrase.ja,
+      simple: phrase.simple,
+      natural: phrase.natural,
+      kana: phrase.kana,
+    });
+  }
+
   async removeSavedPhrase(key: string): Promise<void> {
-    await this.supabase
-      .from("saved_phrases")
-      .delete()
-      .eq("user_id", this.userId)
-      .eq("key", key);
+    await deleteDoc(doc(this.col("savedPhrases"), key));
   }
 
   async setMastered(id: string, mastered: boolean): Promise<void> {
-    await this.supabase
-      .from("mistakes")
-      .update({ mastered })
-      .eq("user_id", this.userId)
-      .eq("id", id);
+    await updateDoc(doc(this.col("mistakes"), id), { mastered });
   }
 
   async reset(): Promise<void> {
-    await Promise.all([
-      this.supabase.from("sessions").delete().eq("user_id", this.userId),
-      this.supabase.from("saved_phrases").delete().eq("user_id", this.userId),
-      this.supabase.from("mistakes").delete().eq("user_id", this.userId),
-    ]);
+    for (const name of ["sessions", "savedPhrases", "mistakes"]) {
+      const snap = await getDocs(this.col(name));
+      // 500件ずつバッチ削除
+      let batch = writeBatch(this.db);
+      let count = 0;
+      for (const d of snap.docs) {
+        batch.delete(d.ref);
+        count += 1;
+        if (count >= 450) {
+          await batch.commit();
+          batch = writeBatch(this.db);
+          count = 0;
+        }
+      }
+      if (count > 0) await batch.commit();
+    }
   }
 }
 
 /** 現在の認証状態に応じて適切なリポジトリを返す。 */
 export function createProgressRepo(
-  supabase: SupabaseClient | null,
+  db: Firestore | null,
   userId: string | null,
 ): ProgressRepo {
-  if (supabase && userId) return new SupabaseRepo(supabase, userId);
+  if (db && userId) return new FirestoreRepo(db, userId);
   return new LocalRepo();
 }

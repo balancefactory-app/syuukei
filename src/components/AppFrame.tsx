@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { useAppStore } from "@/lib/store";
 
 type NavKey = "home" | "phrases" | "review";
 
@@ -20,10 +22,28 @@ interface Props {
 /**
  * プロトタイプの #shell 相当。のれん・トップバー・コンテンツ・ボトムナビを描画。
  * モバイル想定の 430px 中央寄せ1カラムレイアウト。
+ *
+ * Firebase 構成時は「ログイン必須（スタッフ限定）」のクライアント側ゲートを持ち、
+ * 未ログインのユーザーはログイン画面へ誘導する。
  */
 export default function AppFrame({ title = "", showBack = false, children }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+
+  const authEnabled = useAppStore((s) => s.authEnabled);
+  const authReady = useAppStore((s) => s.authReady);
+  const userId = useAppStore((s) => s.userId);
+
+  const onLogin = pathname.startsWith("/login");
+  const needsAuth = authEnabled && !onLogin;
+  const blocked = needsAuth && (!authReady || !userId);
+
+  // 認証確認後、未ログインならログイン画面へ
+  useEffect(() => {
+    if (needsAuth && authReady && !userId) {
+      router.replace("/login");
+    }
+  }, [needsAuth, authReady, userId, router]);
 
   const activeKey: NavKey | null =
     pathname === "/"
@@ -33,6 +53,18 @@ export default function AppFrame({ title = "", showBack = false, children }: Pro
         : pathname.startsWith("/review")
           ? "review"
           : null;
+
+  // ログイン確認中 / 未ログイン時はコンテンツを表示しない
+  if (blocked) {
+    return (
+      <div className="relative mx-auto flex min-h-screen w-full max-w-shell flex-col bg-cream">
+        <div className="noren" />
+        <div className="flex flex-1 items-center justify-center p-6 text-sm text-ink-soft">
+          読み込み中…
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative mx-auto flex min-h-screen w-full max-w-shell flex-col bg-cream">

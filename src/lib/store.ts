@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { onAuthStateChanged, signOut as fbSignOut } from "firebase/auth";
 import type {
   ChatMessage,
   Mistake,
@@ -9,8 +10,8 @@ import type {
   Scenario,
   ScoreResult,
 } from "@/lib/types";
-import { getBrowserSupabase } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { getFirebase } from "@/lib/firebase/client";
+import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { createProgressRepo, type ProgressRepo } from "@/lib/progress";
 import { getScenario } from "@/data/scenarios";
 import { PHRASES } from "@/data/phrases";
@@ -25,7 +26,8 @@ interface RoleplaySession {
 
 interface AppState {
   authReady: boolean;
-  usingSupabase: boolean;
+  /** Firebase が構成されているか（＝ログイン必須のスタッフ限定モードか）*/
+  authEnabled: boolean;
   userId: string | null;
   userEmail: string | null;
 
@@ -57,7 +59,8 @@ const EMPTY_PROGRESS: ProgressSnapshot = {
 };
 
 function currentRepo(state: AppState): ProgressRepo {
-  return createProgressRepo(getBrowserSupabase(), state.userId);
+  const fb = getFirebase();
+  return createProgressRepo(fb?.db ?? null, state.userId);
 }
 
 function countMatches(text: string, list: string[]): number {
@@ -76,7 +79,7 @@ let authSubscribed = false;
 
 export const useAppStore = create<AppState>((set, get) => ({
   authReady: false,
-  usingSupabase: isSupabaseConfigured(),
+  authEnabled: isFirebaseConfigured(),
   userId: null,
   userEmail: null,
 
@@ -89,30 +92,27 @@ export const useAppStore = create<AppState>((set, get) => ({
   scoringError: null,
 
   async init() {
-    const supabase = getBrowserSupabase();
+    const fb = getFirebase();
 
-    if (supabase && !authSubscribed) {
-      authSubscribed = true;
-      supabase.auth.onAuthStateChange((_event, sess) => {
-        const user = sess?.user ?? null;
-        set({ userId: user?.id ?? null, userEmail: user?.email ?? null });
-        void get().reloadProgress();
-      });
-    }
-
-    if (supabase) {
-      const { data } = await supabase.auth.getUser();
-      const user = data.user;
-      set({
-        userId: user?.id ?? null,
-        userEmail: user?.email ?? null,
-        authReady: true,
-      });
+    if (fb) {
+      if (!authSubscribed) {
+        authSubscribed = true;
+        // ログイン状態の変化を購読。初回ロード時にも一度発火する。
+        onAuthStateChanged(fb.auth, (user) => {
+          set({
+            userId: user?.uid ?? null,
+            userEmail: user?.email ?? null,
+            authReady: true,
+          });
+          void get().reloadProgress();
+        });
+      }
+      // authReady は onAuthStateChanged コールバックで設定される
     } else {
+      // Firebase 未構成: ゲストモード
       set({ authReady: true });
+      await get().reloadProgress();
     }
-
-    await get().reloadProgress();
   },
 
   async reloadProgress() {
@@ -187,12 +187,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     // 最終ターン: 採点へ
-    set({ session: { ...session, messages, userAnswers }, scoring: true, scoringError: null });
+    set({
+      session: { ...session, messages, userAnswers },
+      scoring: true,
+      scoringError: null,
+    });
     await get().finishSession(scenario, userAnswers);
     return "finished";
   },
 
-  async finishSession(scenario: Scenario, userAnswers: string[]) {
+  async finishSession(scenario, userAnswers) {
     let result: ScoreResult | null = null;
     try {
       const res = await fetch("/api/score", {
@@ -208,11 +212,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     if (!result) {
-      set({ scoring: false, scoringError: "採点に失敗しました。通信環境をご確認のうえ、もう一度お試しください。" });
+      set({
+        scoring: false,
+        scoringError:
+          "採点に失敗しました。通信環境をご確認のうえ、もう一度お試しください。",
+      });
       return;
     }
 
-    // 改善ポイントを「間違えた表現（要復習）」として記録
     const date = new Date().toLocaleDateString("ja-JP");
     const mistakes: Mistake[] = result.points.map((p) => ({
       id: newId(),
@@ -268,7 +275,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({
         progress: {
           ...state.progress,
-          savedPhrases: { ...state.progress.savedPhrases, [phrase.key]: phrase },
+          savedPhrases: {
+            ...state.progress.savedPhrases,
+            [phrase.key]: phrase,
+          },
         },
       });
       await repo.addSavedPhrase(phrase);
@@ -298,8 +308,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   async signOut() {
-    const supabase = getBrowserSupabase();
-    if (supabase) await supabase.auth.signOut();
+    const fb = getFirebase();
+    if (fb) await fbSignOut(fb.auth);
     set({ userId: null, userEmail: null });
     await get().reloadProgress();
   },
