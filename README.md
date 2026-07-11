@@ -86,9 +86,15 @@ Firebase を設定すると自動的に「ログイン必須」となり、ア�
 
 ## デプロイ（Netlify）
 
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/balancefactory-app/syuukei)
+
+上のボタンから取り込むと、`netlify.toml` の定義により **環境変数の入力欄が説明付きで表示**されます。値を貼り付けてデプロイするだけです。
+
+手動で行う場合:
+
 1. [Netlify](https://app.netlify.com) で **Add new site → Import an existing project → GitHub**。
-2. リポジトリ `syuukei` を選択し、公開するブランチを指定。
-3. **Environment variables** に上記の環境変数を登録。
+2. リポジトリ `syuukei` を選択。
+3. **Environment variables** に環境変数を登録。
 4. デプロイ（`netlify.toml` と `@netlify/plugin-nextjs` により SSR / API / 認証ゲートが動作）。
 
 > Vercel など他の Next.js 対応ホスティングでも動作します。

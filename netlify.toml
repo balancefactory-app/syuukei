@@ -10,3 +10,12 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# 「Deploy to Netlify」ボタンから取り込むと、以下の環境変数の入力欄が
+# 説明付きで表示されます（値は Firebase コンソール等から取得）。
+[template.environment]
+  NEXT_PUBLIC_FIREBASE_API_KEY = "Firebase の apiKey"
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = "Firebase の authDomain（例: your-app.firebaseapp.com）"
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID = "Firebase の projectId"
+  NEXT_PUBLIC_FIREBASE_APP_ID = "Firebase の appId"
+  ANTHROPIC_API_KEY = "Claude API キー（任意・空でも動作します）"
