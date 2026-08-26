@@ -227,30 +227,48 @@ function checkDailyTrigger() {
   }
 }
 
-// スプレッドシートを開いたとき、伝票 入出金シートの「当日(JST)」の行へスクロールする。
-// B列(2列目)の日付が今日と一致する行を探して選択（カーソル移動）する。
-function scrollToToday_() {
+// 伝票 入出金シートの「当日(JST)」の行を探して選択・スクロールする。
+// B列(2列目)の日付が今日と一致する行へカーソルを移動する。
+// showAlert=true のときは、見つからなかった場合にメッセージを表示する（手動実行・診断用）。
+function scrollToToday_(showAlert) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) return;
+  if (!sheet) {
+    if (showAlert) SpreadsheetApp.getUi().alert('シート「' + SHEET_NAME + '」が見つかりません');
+    return;
+  }
 
   var todayStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd');
   var lastRow = sheet.getLastRow();
   for (var i = 19; i <= lastRow; i++) {
     var v = sheet.getRange(i, 2).getValue();
     if (!v) continue;
-    if (Utilities.formatDate(new Date(v), 'Asia/Tokyo', 'yyyy/MM/dd') === todayStr) {
-      sheet.activate();
-      var cell = sheet.getRange(i, 2);
-      sheet.setActiveRange(cell); // 当日行を選択してその位置までスクロール
+    var d = (v instanceof Date) ? v : new Date(v);
+    if (isNaN(d.getTime())) continue;
+    if (Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy/MM/dd') === todayStr) {
+      // range.activate() でシート切替＋選択＋その位置へスクロールを行う（推奨API）
+      sheet.getRange(i, 2).activate();
+      SpreadsheetApp.flush();
       return;
     }
   }
+  if (showAlert) {
+    SpreadsheetApp.getUi().alert(
+      '当日(' + todayStr + ')の行が見つかりませんでした。\n' +
+      'シート「' + SHEET_NAME + '」のB列に本日の日付の行があるかご確認ください。');
+  }
+}
+
+// メニュー用：当日の行へ手動で移動（onOpenで飛ばないときの確認・代替用）
+function scrollToToday() {
+  scrollToToday_(true);
 }
 
 function onOpen() {
-  scrollToToday_();
+  scrollToToday_(false);
   SpreadsheetApp.getUi().createMenu('売上集計')
+    .addItem('当日の行へ移動', 'scrollToToday')
+    .addSeparator()
     .addItem('前日集計を今すぐ実行', 'shukei')
     .addSeparator()
     .addItem('自動実行をON（毎朝' + TRIGGER_HOUR + '時台）', 'setupDailyTrigger')
