@@ -141,7 +141,8 @@ function writeTotals_(dateStr, totals) {
     return false;
   }
   for (var cat in CAT_COL) {
-    sheet.getRange(targetRow, CAT_COL[cat]).setValue(totals[cat]);
+    // 売上が0の項目は空白にする（0は書き込まない）
+    sheet.getRange(targetRow, CAT_COL[cat]).setValue(totals[cat] ? totals[cat] : '');
   }
   Logger.log('完了: ' + dateStr + ' → ' + targetRow + '行目');
   return true;
@@ -226,7 +227,29 @@ function checkDailyTrigger() {
   }
 }
 
+// スプレッドシートを開いたとき、伝票 入出金シートの「当日(JST)」の行へスクロールする。
+// B列(2列目)の日付が今日と一致する行を探して選択（カーソル移動）する。
+function scrollToToday_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) return;
+
+  var todayStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd');
+  var lastRow = sheet.getLastRow();
+  for (var i = 19; i <= lastRow; i++) {
+    var v = sheet.getRange(i, 2).getValue();
+    if (!v) continue;
+    if (Utilities.formatDate(new Date(v), 'Asia/Tokyo', 'yyyy/MM/dd') === todayStr) {
+      sheet.activate();
+      var cell = sheet.getRange(i, 2);
+      sheet.setActiveRange(cell); // 当日行を選択してその位置までスクロール
+      return;
+    }
+  }
+}
+
 function onOpen() {
+  scrollToToday_();
   SpreadsheetApp.getUi().createMenu('売上集計')
     .addItem('前日集計を今すぐ実行', 'shukei')
     .addSeparator()
