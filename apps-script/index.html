@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+      margin: 0; padding: 16px; background: #f5f6f8; color: #1f2328;
+    }
+    .card {
+      max-width: 560px; margin: 0 auto; background: #fff; border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 20px 22px;
+    }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    p.sub { margin: 0 0 18px; color: #656d76; font-size: 13px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
+    input, select {
+      width: 100%; padding: 10px 12px; font-size: 15px; border: 1px solid #d0d7de;
+      border-radius: 8px; background: #fff; color: inherit;
+    }
+    input:focus, select:focus { outline: 2px solid #0969da; border-color: #0969da; }
+    .row { display: flex; gap: 12px; }
+    .row > div { flex: 1; }
+    .seg { display: flex; gap: 8px; }
+    .seg label {
+      flex: 1; margin: 0; text-align: center; padding: 10px; border: 1px solid #d0d7de;
+      border-radius: 8px; cursor: pointer; font-weight: 500; user-select: none;
+    }
+    .seg input { display: none; }
+    .seg input:checked + span { font-weight: 700; }
+    .seg label:has(input:checked) { border-color: #0969da; background: #ddf4ff; color: #0969da; }
+    .actions { margin-top: 22px; }
+    button {
+      width: 100%; padding: 12px; font-size: 16px; font-weight: 700; color: #fff;
+      background: #1f883d; border: none; border-radius: 8px; cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: default; }
+    .msg { margin-top: 14px; padding: 10px 12px; border-radius: 8px; font-size: 14px; display: none; }
+    .msg.ok { background: #dafbe1; color: #1a7f37; display: block; }
+    .msg.err { background: #ffebe9; color: #cf222e; display: block; }
+    .hint { font-size: 12px; color: #656d76; font-weight: 400; }
+    .loading { text-align: center; color: #656d76; padding: 30px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>入出金入力</h1>
+    <p class="sub">入力すると「現金/振込 × 入金/出金」で自動的に該当シートへ振り分けます。</p>
+
+    <div id="loading" class="loading">読み込み中…</div>
+
+    <form id="form" style="display:none">
+      <div class="row">
+        <div>
+          <label for="date">日付</label>
+          <input type="date" id="date" required>
+        </div>
+        <div>
+          <label for="amount">金額（円）</label>
+          <input type="number" id="amount" inputmode="numeric" min="0" step="1" placeholder="0" required>
+        </div>
+      </div>
+
+      <label for="payee">入出金先名 <span class="hint">（一覧から選択、または新規入力）</span></label>
+      <input list="payeeList" id="payee" autocomplete="off" placeholder="例：〇〇商店" required>
+      <datalist id="payeeList"></datalist>
+
+      <label>現金 / 振込</label>
+      <div class="seg" id="kindSeg"></div>
+
+      <label>入金 / 出金</label>
+      <div class="seg" id="flowSeg"></div>
+
+      <label for="category">仕分け項目 <span class="hint">（一覧から選択、または新規入力）</span></label>
+      <input list="categoryList" id="category" autocomplete="off" placeholder="例：売上 / 仕入 / 消耗品費" required>
+      <datalist id="categoryList"></datalist>
+
+      <label for="memo">メモ <span class="hint">（任意）</span></label>
+      <input type="text" id="memo" autocomplete="off" placeholder="">
+
+      <div class="actions">
+        <button type="submit" id="submitBtn">登録する</button>
+      </div>
+      <div id="msg" class="msg"></div>
+    </form>
+  </div>
+
+  <script>
+    var PAYEES = {};       // name -> {kind, flow, category}
+    var KIND_OPTIONS = [];
+    var FLOW_OPTIONS = [];
+
+    function todayStr() {
+      var d = new Date();
+      var m = ('0' + (d.getMonth() + 1)).slice(-2);
+      var day = ('0' + d.getDate()).slice(-2);
+      return d.getFullYear() + '-' + m + '-' + day;
+    }
+
+    function buildSegment(containerId, groupName, options) {
+      var el = document.getElementById(containerId);
+      el.innerHTML = '';
+      options.forEach(function (opt, i) {
+        var label = document.createElement('label');
+        var input = document.createElement('input');
+        input.type = 'radio';
+        input.name = groupName;
+        input.value = opt;
+        if (i === 0) input.checked = true;
+        var span = document.createElement('span');
+        span.textContent = opt;
+        label.appendChild(input);
+        label.appendChild(span);
+        el.appendChild(label);
+      });
+    }
+
+    function getRadio(name) {
+      var r = document.querySelector('input[name="' + name + '"]:checked');
+      return r ? r.value : '';
+    }
+    function setRadio(name, value) {
+      var r = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
+      if (r) r.checked = true;
+    }
+
+    // 入出金先を選ぶと既定値を自動入力（手動変更は可能）
+    function applyDefaults() {
+      var name = document.getElementById('payee').value.trim();
+      var def = PAYEES[name];
+      if (!def) return;
+      if (def.kind) setRadio('kind', def.kind);
+      if (def.flow) setRadio('flow', def.flow);
+      if (def.category) document.getElementById('category').value = def.category;
+    }
+
+    function showMsg(text, ok) {
+      var m = document.getElementById('msg');
+      m.textContent = text;
+      m.className = 'msg ' + (ok ? 'ok' : 'err');
+    }
+
+    function initForm(data) {
+      KIND_OPTIONS = data.kindOptions;
+      FLOW_OPTIONS = data.flowOptions;
+      buildSegment('kindSeg', 'kind', KIND_OPTIONS);
+      buildSegment('flowSeg', 'flow', FLOW_OPTIONS);
+
+      var payeeList = document.getElementById('payeeList');
+      data.payees.forEach(function (p) {
+        PAYEES[p.name] = { kind: p.kind, flow: p.flow, category: p.category };
+        var o = document.createElement('option');
+        o.value = p.name;
+        payeeList.appendChild(o);
+      });
+
+      var catList = document.getElementById('categoryList');
+      data.categories.forEach(function (c) {
+        var o = document.createElement('option');
+        o.value = c;
+        catList.appendChild(o);
+      });
+
+      document.getElementById('date').value = todayStr();
+      document.getElementById('payee').addEventListener('change', applyDefaults);
+      document.getElementById('payee').addEventListener('input', applyDefaults);
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('form').style.display = 'block';
+    }
+
+    document.getElementById('form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      showMsg('', true);
+      document.getElementById('msg').className = 'msg';
+
+      var entry = {
+        date: document.getElementById('date').value,
+        amount: document.getElementById('amount').value,
+        payee: document.getElementById('payee').value,
+        kind: getRadio('kind'),
+        flow: getRadio('flow'),
+        category: document.getElementById('category').value,
+        memo: document.getElementById('memo').value,
+        updateMaster: true,
+      };
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled = false;
+          showMsg(res.message, true);
+          // 次の入力に備えて金額・入出金先・メモをクリア（日付は維持）
+          document.getElementById('amount').value = '';
+          document.getElementById('memo').value = '';
+          // 新規入出金先を候補へ即時反映
+          if (!PAYEES[entry.payee.trim()]) {
+            PAYEES[entry.payee.trim()] = { kind: entry.kind, flow: entry.flow, category: entry.category };
+            var o = document.createElement('option');
+            o.value = entry.payee.trim();
+            document.getElementById('payeeList').appendChild(o);
+          }
+          document.getElementById('payee').value = '';
+          document.getElementById('payee').focus();
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          showMsg(err && err.message ? err.message : '登録に失敗しました。', false);
+        })
+        .submitEntry(entry);
+    });
+
+    // 起動時にマスタ・候補を読み込み
+    google.script.run
+      .withSuccessHandler(initForm)
+      .withFailureHandler(function (err) {
+        document.getElementById('loading').textContent =
+          '読み込みに失敗しました：' + (err && err.message ? err.message : err);
+      })
+      .getFormData();
+  </script>
+</body>
+</html>
