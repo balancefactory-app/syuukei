@@ -264,12 +264,72 @@ function scrollToToday() {
   scrollToToday_(true);
 }
 
+// 日付列(B列)を「現在の会計年度(9月始まり)」の連続日付に振り直す。
+// 前年度スプレッドシートをコピーして数字だけ消したとき、日付が前年のままで
+// 集計が反映されない問題を解消するための関数。
+//
+// ・触るのはB列の日付行のみ（入力済みの数字・書式・注記は変更しない）
+// ・既存の日付行数はそのまま維持し、開始日を新会計年度の9/1に振り直す
+// ・実行時点が9〜12月ならその年の9/1、1〜8月なら前年の9/1を開始日とする
+function setFiscalYearDates() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('シート「' + SHEET_NAME + '」が見つかりません');
+    return;
+  }
+
+  var startRow = 19; // 日付の最初の行（テンプレート固定）
+  var lastRow = sheet.getLastRow();
+
+  // B列に日付が連続して入っている行数を数える
+  var count = 0;
+  for (var i = startRow; i <= lastRow; i++) {
+    var v = sheet.getRange(i, 2).getValue();
+    if (v === '' || v === null) break;
+    count++;
+  }
+  if (count === 0) {
+    SpreadsheetApp.getUi().alert('日付行が見つかりませんでした（B' + startRow + '以降）');
+    return;
+  }
+
+  // 会計年度の開始日を決定（9月始まり）
+  var now = new Date();
+  var y = Number(Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy'));
+  var m = Number(Utilities.formatDate(now, 'Asia/Tokyo', 'MM'));
+  var startYear = (m >= 9) ? y : y - 1;
+  var start = new Date(startYear, 8, 1); // 8 = 9月
+
+  // 開始日から count 日分の連続日付を作成
+  var values = [];
+  for (var k = 0; k < count; k++) {
+    var d = new Date(start.getTime());
+    d.setDate(d.getDate() + k);
+    values.push([d]);
+  }
+
+  var ui = SpreadsheetApp.getUi();
+  var firstStr = Utilities.formatDate(values[0][0], 'Asia/Tokyo', 'yyyy/MM/dd');
+  var lastStr = Utilities.formatDate(values[count - 1][0], 'Asia/Tokyo', 'yyyy/MM/dd');
+  var res = ui.alert(
+    '日付を新会計年度に振り直します',
+    'B' + startRow + '〜B' + (startRow + count - 1) + '（' + count + '行）を\n' +
+    firstStr + ' 〜 ' + lastStr + ' に書き換えます。よろしいですか？',
+    ui.ButtonSet.OK_CANCEL);
+  if (res !== ui.Button.OK) return;
+
+  sheet.getRange(startRow, 2, count, 1).setValues(values);
+  ss.toast('日付を ' + firstStr + '〜' + lastStr + ' に振り直しました', '完了', 5);
+}
+
 function onOpen() {
   scrollToToday_(false);
   SpreadsheetApp.getUi().createMenu('売上集計')
     .addItem('当日の行へ移動', 'scrollToToday')
     .addSeparator()
     .addItem('前日集計を今すぐ実行', 'shukei')
+    .addItem('日付を今年度に振り直す', 'setFiscalYearDates')
     .addSeparator()
     .addItem('自動実行をON（毎朝' + TRIGGER_HOUR + '時台）', 'setupDailyTrigger')
     .addItem('自動実行をOFF', 'stopDailyTrigger')
