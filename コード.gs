@@ -167,6 +167,49 @@ function shukeiForDate(y, m, d) {
   writeLog_(result);
 }
 
+// メニュー用：日付を指定して集計・記載する。
+// ダイアログで日付を入力（例 2026/09/01、2026-9-1 なども可）→ その日を集計して該当行へ書き込む。
+function shukeiForDatePrompt() {
+  var ui = SpreadsheetApp.getUi();
+  var res = ui.prompt(
+    '日付を指定して集計',
+    '集計したい日付を入力してください（例: 2026/09/01）',
+    ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+
+  var text = res.getResponseText().trim();
+  // 2026/09/01・2026-9-1・2026.9.1 などを許容
+  var m = text.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+  if (!m) {
+    ui.alert('日付の形式が正しくありません。\n「2026/09/01」のように 年/月/日 で入力してください。');
+    return;
+  }
+  var y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) {
+    ui.alert('日付の値が正しくありません: ' + text);
+    return;
+  }
+
+  var target = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0));
+  var result = aggregateForDate_(target);
+  var written = writeTotals_(result.dateStr, result.totals);
+  writeLog_(result);
+
+  if (written) {
+    var sum = 0;
+    for (var k in result.totals) sum += result.totals[k];
+    ui.alert('集計完了',
+      result.dateStr + ' を集計し、該当行へ記載しました。\n' +
+      'レシート件数: ' + result.receiptCount + '件 / 合計: ' + sum + '円',
+      ui.ButtonSet.OK);
+  } else {
+    ui.alert('記載先が見つかりません',
+      result.dateStr + ' の集計はできましたが、B列に同じ日付の行が無いため記載できませんでした。\n' +
+      '日付列をご確認ください（必要なら「日付を今年度に振り直す」を実行）。',
+      ui.ButtonSet.OK);
+  }
+}
+
 // ============================================================
 // 自動実行（時間主導型トリガー）まわり
 // ============================================================
@@ -329,6 +372,7 @@ function onOpen() {
     .addItem('当日の行へ移動', 'scrollToToday')
     .addSeparator()
     .addItem('前日集計を今すぐ実行', 'shukei')
+    .addItem('日付を指定して集計', 'shukeiForDatePrompt')
     .addItem('日付を今年度に振り直す', 'setFiscalYearDates')
     .addSeparator()
     .addItem('自動実行をON（毎朝' + TRIGGER_HOUR + '時台）', 'setupDailyTrigger')
